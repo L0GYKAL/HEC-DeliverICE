@@ -1,0 +1,14 @@
+archetype delivery
+
+asset parcel{
+    id : int;
+    expeditor : address;
+    courier : address;
+    relay : address;
+    receiver : address;
+    maxTime : duration;
+    objectPrice : tez;
+    ridePrice : tez;
+    hasBeenRelayed : bool;
+}
+
