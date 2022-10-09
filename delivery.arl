@@ -1,7 +1,22 @@
 archetype delivery
 
-asset parcel{
-    id : int;
+variable currentID : nat  = 0
+
+enum ActorTypes = 
+| EXPEDITOR
+| COURIER
+| RELAY
+| RECEIVER
+
+asset actorsType to big_map{
+    adr : address;
+    aType : ActorTypes;
+}
+
+
+
+asset parcel identified by id to big_map{
+    id : nat;
     expeditor : address;
     courier : address;
     relay : address;
@@ -11,4 +26,32 @@ asset parcel{
     ridePrice : tez;
     hasBeenRelayed : bool;
 }
+//entry createCommand (_epx : address, _relay : address, deliveryLimit : date, _commandValue : nat, _commandFee : nat) {
+    //do_require();
+    
+entry %command(exp_ : address, objectPrice_ : tez ){
+    //require(*check actor type*)
+    currentID += 1;
+    //parcel.add({
+    //    id = currentID;
+    //    expeditor = exp_;
+    //})
+}
 
+entry %takeCommand(id_ : nat){
+    //require()
+    //transfer balance to 
+}
+
+entry %slashCollateral(id_ : nat){
+    //require(actorsType[])
+
+}
+
+
+/*une adresse ne peut etre qu'un seul acteur a la fois ?
+*/
+
+//view getOwnerType(id : nat){
+//    return actorsType[parcel]
+//}
