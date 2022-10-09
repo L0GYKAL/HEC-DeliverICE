@@ -26,6 +26,15 @@ asset parcels identified by id to big_map{
     hasBeenRelayed : bool;
 }
 
+entry setActorType(type_ : ActorTypes){
+    actorsType[caller].aType := type_
+}
+
+view getOwnerType(id_ : nat) : ActorTypes {
+    const owner ?= actorsType[parcels[id_].currentOwner];
+    return owner.aType
+}
+
 entry createCommand (exp_ : address, relay_ : address, deliveryLimit_ : date, commandValue_ : tez, commandFee_ : tez) {
     const exp_Type ?= actorsType[exp_];
     do_require(exp_Type.aType = EXPEDITOR, "Not expeditor");
@@ -100,11 +109,47 @@ entry slashCollateralForBadBehavior(id_ : nat){
     transfer fees to addReceiver;
 }
 
-
-/*une adresse ne peut etre qu'un seul acteur a la fois ?
-*/
-
-view getOwnerType(id_ : nat) : ActorTypes {
-    const owner ?= actorsType[parcels[id_].currentOwner];
-    return owner.aType
+entry receiveNFTasRelai(id_: nat){
+    const addRelay = parcels[id_].relay;
+    do_require(caller = addRelay, "not the selected relay");
+    const timeLimit = parcels[id_].maxTime;
+    do_require(now < timeLimit, "Timelimit is already reached");
+    const value = parcels[id_].objectPrice;
+    const collateral = 1.1*value;
+    do_require(transferred >= collateral, "not enough collateral");
+    parcels[id_].currentOwner := caller;
+    parcels[id_].hasBeenRelayed := true;
+    const addCourier ?= parcels[id_].courier;
+    transfer collateral to addCourier;
 }
+
+entry receiveNFTasReceiver(id_: nat){
+    const timeLimit = parcels[id_].maxTime;
+    do_require(now < timeLimit, "Timelimit is already reached");
+    const addReceiver = parcels[id_].receiver;
+    do_require(caller = addReceiver, "not the receiver");
+    const oldOwner = parcels[id_].currentOwner;
+    const value = parcels[id_].objectPrice;
+    const collateral = 1.1*value;
+    transfer collateral to oldOwner;
+    if parcels[id_].hasBeenRelayed then begin
+        const relayFee = 0.1*parcels[id_].ridePrice;
+        const courierFee = parcels[id_].ridePrice - relayFee;
+        const addRelay = parcels[id_].relay;
+        transfer relayFee to addRelay;
+        const addCourier ?= parcels[id_].courier;
+        transfer courierFee to addCourier;
+    end
+    else begin
+        const addCourier ?= parcels[id_].courier;
+        transfer parcels[id_].ridePrice to addCourier;
+    end      
+}
+
+entry changeReceiver(id_ : nat, newReceiver : address){
+    const addReceiver = parcels[id_].receiver;
+    do_require(caller = addReceiver, "not the receiver");
+    parcels[id_].receiver := newReceiver
+}
+
+
