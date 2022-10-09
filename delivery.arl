@@ -17,7 +17,7 @@ asset parcels identified by id to big_map{
     id : nat;
     currentOwner : address;
     expeditor : address;
-    courier : address;
+    courier : option<address>;
     relay : address;
     receiver : address;
     maxTime : date;
@@ -25,19 +25,26 @@ asset parcels identified by id to big_map{
     ridePrice : tez;
     hasBeenRelayed : bool;
 }
-entry createCommand (epx_ : address, relay_ : address, deliveryLimit_ : date, commandValue_ : nat, commandFee_ : nat) {
 
-}
-    //do_require();
-
-entry createCommand(exp_ : address, objectPrice_ : tez ){
-    //require(*check actor type*)
+entry createCommand (exp_ : address, relay_ : address, deliveryLimit_ : date, commandValue_ : tez, commandFee_ : tez) {
+    const exp_Type ?= actorsType[exp_];
+    do_require(exp_Type = some(EXPEDITOR), "Not expeditor");
+    const relay_Type ?= actorsType[relay_];
+    do_require(relay_Type = some(RELAY), "Not relay");
+    const callerType ?= actorsType[caller];
+    do_require(callerType = some(RECEIVER), "Not receiver");
     currentID += 1;
-    //TODO: currentOwner = expediteur
-    //parcels.add({
-    //    id = currentID;
-    //    expeditor = exp_;
-    //})
+    parcels.add({
+        id = currentID;
+        currentOwner = exp_;
+        expeditor = exp_;
+        courier = none<address>;
+        relay = relay_;
+        receiver = caller;
+        maxTime = deliveryLimit_;
+        objectPrice = commandValue_;
+        ridePrice = commandFee_;
+        hasBeenRelayed = false})
 }
 
 entry reserveCommand(id_ : nat){
@@ -54,7 +61,7 @@ entry reserveCommand(id_ : nat){
 entry takeCommand(id_ : nat){
     match parcels[id_].courier with
         | caller -> 
-            match deliveries[id_].ridePrice with 
+            match parcels[id_].ridePrice with 
             | some(ridePrice) -> 
                 do_require(transferred > deliveries[id_].ridePrice*110/100, "Not enough collateral");
                 parcels[id_].currentOwner := caller //TODO: transfer ownership
@@ -67,7 +74,7 @@ entry takeCommand(id_ : nat){
 entry slashCollateralForTimelimit(id_ : nat){
     const currentOwner = parcels[id_].currentOwner;
     if actorsType[currentOwner] = COURIER then begin 
-        const timelimit = parcels[id_].maxTime;
+        const timeLimit = parcels[id_].maxTime;
         do_require(now > timeLimit, "Timelimit isn't reached");
         const value = parcels[id_].objectPrice;
         const collateral = value * 110/100;
@@ -100,5 +107,5 @@ entry slashCollateralForBadBehavior(id_ : nat){
 
 view getOwnerType(id_ : nat) : ActorTypes {
     const owner ?= actorsType[parcels[id_].currentOwner];
-    return owner
+    return owner.FIELD
 }
