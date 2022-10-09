@@ -13,45 +13,92 @@ asset actorsType to big_map{
     aType : ActorTypes;
 }
 
-
-
-asset parcel identified by id to big_map{
+asset parcels identified by id to big_map{
     id : nat;
+    currentOwner : address;
     expeditor : address;
     courier : address;
     relay : address;
     receiver : address;
-    maxTime : duration;
+    maxTime : date;
     objectPrice : tez;
     ridePrice : tez;
     hasBeenRelayed : bool;
 }
-//entry createCommand (_epx : address, _relay : address, deliveryLimit : date, _commandValue : nat, _commandFee : nat) {
+entry createCommand (epx_ : address, relay_ : address, deliveryLimit_ : date, commandValue_ : nat, commandFee_ : nat) {
+
+}
     //do_require();
-    
-entry %command(exp_ : address, objectPrice_ : tez ){
+
+entry createCommand(exp_ : address, objectPrice_ : tez ){
     //require(*check actor type*)
     currentID += 1;
-    //parcel.add({
+    //TODO: currentOwner = expediteur
+    //parcels.add({
     //    id = currentID;
     //    expeditor = exp_;
     //})
 }
 
-entry %takeCommand(id_ : nat){
-    //require()
-    //transfer balance to 
+entry reserveCommand(id_ : nat){
+    match actorsType[caller] with
+    | some(COURIER) -> 
+        match parcels[id_].courier with
+        | some(u) -> fail("Already reserved")
+        | none    -> parcels[id_].courier := some(caller)
+        end
+    | _ -> fail("You're not a courier")
+    end
 }
 
-entry %slashCollateral(id_ : nat){
-    //require(actorsType[])
+entry takeCommand(id_ : nat){
+    match parcels[id_].courier with
+        | caller -> 
+            match deliveries[id_].ridePrice with 
+            | some(ridePrice) -> 
+                do_require(transferred > deliveries[id_].ridePrice*110/100, "Not enough collateral");
+                parcels[id_].currentOwner := caller //TODO: transfer ownership
+            | _ -> fail("Exception")
+            end
+        | _ -> fail("You're not the courier for this delivery")
+    end
+}
 
+entry slashCollateralForTimelimit(id_ : nat){
+    const currentOwner = parcels[id_].currentOwner;
+    if actorsType[currentOwner] = COURIER then begin 
+        const timelimit = parcels[id_].maxTime;
+        do_require(now > timeLimit, "Timelimit isn't reached");
+        const value = parcels[id_].objectPrice;
+        const collateral = value * 110/100;
+        const receiver = parcels[id_].receiver;
+        transfer collateral to receiver;
+        const fees = parcels[id_].ridePrice;
+        transfer fees to receiver;
+    end
+    else begin
+        fail("not a courier")
+    end
+}
+
+entry slashCollateralForBadBehavior(id_ : nat){
+    const expeditor_ = parcels[id_].expeditor;
+    const timeLimit = parcels[id_].maxTime;
+    do_require(now > timeLimit, "Timelimit isn't reached");
+    do_require(caller = expeditor_, "INVALID CALLER");
+    const value = parcels[id_].objectPrice;
+    const collateral = value * 110tz / 100tz;
+    const receiver = parcels[id_].receiver;
+    transfer collateral to receiver;
+    const fees = parcels[id_].ridePrice;
+    transfer fees to receiver;
 }
 
 
 /*une adresse ne peut etre qu'un seul acteur a la fois ?
 */
 
-//view getOwnerType(id : nat){
-//    return actorsType[parcel]
-//}
+view getOwnerType(id_ : nat) : ActorTypes {
+    const owner ?= actorsType[parcels[id_].currentOwner];
+    return owner
+}
